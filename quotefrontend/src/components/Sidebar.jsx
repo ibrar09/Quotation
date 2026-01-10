@@ -69,13 +69,19 @@ const Sidebar = ({ darkMode = true }) => {
       id: "master-data",
       label: "Master Data (AOR)",
       icon: "🗄️",
-      route: "/master-data",
+      subItems: [
+        { id: "md-view", label: "Dashboard View", route: "/master-data", color: "blue" },
+        { id: "md-sync", label: "Sync / Upload", route: "/admin/data-sync", color: "indigo" },
+      ]
     },
     {
       id: "rate-card",
       label: "Price List / Rate Card",
       icon: "💲",
-      route: "/rate-card",
+      subItems: [
+        { id: "pl-view", label: "Rate Card View", route: "/rate-card", color: "green" },
+        { id: "pl-sync", label: "Sync / Upload", route: "/admin/data-sync", color: "indigo" },
+      ]
     },
   ];
 
@@ -106,6 +112,8 @@ const Sidebar = ({ darkMode = true }) => {
         return "bg-green-100 text-green-600";
       case "orange":
         return "bg-orange-100 text-orange-600";
+      case "indigo":
+        return "bg-indigo-100 text-indigo-600";
       default:
         return "bg-gray-100 text-gray-600";
     }

@@ -10,6 +10,7 @@ import QuotationIntake from "./modules/Quotations/QuotationIntake";
 import IntakeList from "./modules/Quotations/IntakeList";
 import WorkList from "./modules/Work/WorkList";
 import QuotationPrintView from "./modules/Quotations/QuotationPrintView";
+import DataSync from "./modules/Admin/DataSync";
 
 function App() {
   return (
@@ -31,6 +32,9 @@ function App() {
 
           {/* Work Routes */}
           <Route path="work/list" element={<WorkList />} />
+
+          {/* Admin Routes */}
+          <Route path="admin/data-sync" element={<DataSync />} />
         </Route>
       </Routes>
     </Router>

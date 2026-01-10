@@ -6,6 +6,7 @@ import financeRoutes from './finance.routes.js';     // ✅ optional: add financ
 import purchaseOrderRoutes from './purchaseorder.routes.js';
 import storeRoutes from './storeRoutes.js';
 import pdfRoutes from './pdf.routes.js';
+import masterRoutes from './master.routes.js';
 const router = express.Router();
 
 // 🔹 Mount all routes
@@ -16,6 +17,7 @@ router.use('/pdf', pdfRoutes);
 router.use('/finance', financeRoutes); // optional
 router.use('/purchaseorders', purchaseOrderRoutes);
 router.use('/stores', storeRoutes);
+router.use('/master', masterRoutes);
 // 🔹 Health check endpoint
 router.get('/health', (req, res) => {
   res.status(200).json({ success: true, message: 'API running' });
