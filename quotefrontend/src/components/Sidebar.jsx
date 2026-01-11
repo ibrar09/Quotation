@@ -59,12 +59,12 @@ const Sidebar = ({ darkMode = true }) => {
         }
       ],
     },
-    {
-      id: "finance",
-      label: "Finance & Invoicing",
-      icon: "💰",
-      route: "/finance",
-    },
+    // {
+    //   id: "finance",
+    //   label: "Finance & Invoicing",
+    //   icon: "💰",
+    //   route: "/finance",
+    // },
     {
       id: "master-data",
       label: "Master Data (AOR)",

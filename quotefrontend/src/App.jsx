@@ -11,6 +11,8 @@ import IntakeList from "./modules/Quotations/IntakeList";
 import WorkList from "./modules/Work/WorkList";
 import QuotationPrintView from "./modules/Quotations/QuotationPrintView";
 import DataSync from "./modules/Admin/DataSync";
+import MasterData from "./modules/Admin/MasterData";
+import PriceList from "./modules/Admin/PriceList";
 
 function App() {
   return (
@@ -35,6 +37,8 @@ function App() {
 
           {/* Admin Routes */}
           <Route path="admin/data-sync" element={<DataSync />} />
+          <Route path="master-data" element={<MasterData />} />
+          <Route path="rate-card" element={<PriceList />} />
         </Route>
       </Routes>
     </Router>

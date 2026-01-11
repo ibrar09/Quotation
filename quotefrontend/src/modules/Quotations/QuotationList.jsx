@@ -6,6 +6,9 @@ import * as XLSX from 'xlsx';
 import QuotationEditModal from './QuotationEditModal';
 import { useTheme } from '../../context/ThemeContext';
 import API_BASE_URL from '../../config/api';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import logoSrc from '../../assets/Maaj-Logo 04.png';
 
 const QuotationList = () => {
     const [quotations, setQuotations] = useState([]);
@@ -51,9 +54,8 @@ const QuotationList = () => {
         }
     };
 
-    const exportToExcel = () => {
-        // Prepare data for export with ALL columns from the table
-        const exportData = filteredQuotations.map((q, index) => {
+    const getExportData = () => {
+        return filteredQuotations.map((q, index) => {
             const po = q.PurchaseOrders?.[0] || {};
             const fin = po.Finance || {};
 
@@ -78,21 +80,21 @@ const QuotationList = () => {
                 'PO Date': po.po_date || 'N/A',
                 'ETA': po.eta || 'N/A',
                 'Update': po.update_notes || 'N/A',
-                'Amt Ex VAT': po.amount_ex_vat || q.subtotal || 0,
-                'VAT': po.vat_15 || q.vat_amount || 0,
-                'Total': po.total_inc_vat || q.grand_total || 0,
+                'Amt Ex VAT': (po.amount_ex_vat || q.subtotal || 0).toLocaleString(),
+                'VAT': (po.vat_15 || q.vat_amount || 0).toLocaleString(),
+                'Total': (po.total_inc_vat || q.grand_total || 0).toLocaleString(),
                 'Inv Status': fin.invoice_status || 'N/A',
                 'Inv #': fin.invoice_no || 'N/A',
                 'Inv Date': fin.invoice_date || 'N/A',
                 'Supervisor': q.supervisor || 'N/A',
                 'Comments': q.comments || 'N/A',
                 'Store ID': q.oracle_ccid || 'N/A',
-                'Adv Pay': fin.advance_payment || 0,
+                'Adv Pay': (fin.advance_payment || 0).toLocaleString(),
                 'Pay Ref': fin.payment_ref || 'N/A',
-                'Recv Amt': fin.received_amount || 0,
+                'Recv Amt': (fin.received_amount || 0).toLocaleString(),
                 'Pay Date': fin.payment_date || 'N/A',
                 'Pay Month': fin.payment_month || 'N/A',
-                'Ref #': fin.general_ref || 'N/A', // Changed from payment_status to general_ref based on table
+                'Ref #': fin.general_ref || 'N/A',
                 'Bank Date': fin.bank_date || 'N/A',
                 'HSBC #': fin.hsbc_no || 'N/A',
                 'Our Bank Ref': fin.our_bank_ref || 'N/A',
@@ -102,71 +104,120 @@ const QuotationList = () => {
                 'Days': fin.days_outstanding || 0
             };
         });
+    };
 
-        // Create worksheet
+    const exportToExcel = () => {
+        const exportData = getExportData();
         const ws = XLSX.utils.json_to_sheet(exportData);
 
-        // Set column widths for all 42 columns
         const colWidths = [
-            { wch: 5 },  // SR#
-            { wch: 20 }, // Company
-            { wch: 12 }, // Quote Date
-            { wch: 12 }, // Status
-            { wch: 15 }, // Quote #
-            { wch: 12 }, // MR Date
-            { wch: 15 }, // MR #
-            { wch: 15 }, // PR #
-            { wch: 20 }, // Brand
-            { wch: 25 }, // Location
-            { wch: 15 }, // City
-            { wch: 15 }, // Region
-            { wch: 40 }, // Work Desc
-            { wch: 15 }, // Work Status
-            { wch: 12 }, // Comp Date
-            { wch: 20 }, // Completed By
-            { wch: 15 }, // PO #
-            { wch: 12 }, // PO Date
-            { wch: 12 }, // ETA
-            { wch: 30 }, // Update
-            { wch: 12 }, // Amt Ex VAT
-            { wch: 12 }, // VAT
-            { wch: 12 }, // Total
-            { wch: 15 }, // Inv Status
-            { wch: 15 }, // Inv #
-            { wch: 12 }, // Inv Date
-            { wch: 20 }, // Supervisor
-            { wch: 30 }, // Comments
-            { wch: 15 }, // Store ID
-            { wch: 12 }, // Adv Pay
-            { wch: 20 }, // Pay Ref
-            { wch: 12 }, // Recv Amt
-            { wch: 12 }, // Pay Date
-            { wch: 12 }, // Pay Month
-            { wch: 15 }, // Ref #
-            { wch: 12 }, // Bank Date
-            { wch: 15 }, // HSBC #
-            { wch: 20 }, // Our Bank Ref
-            { wch: 20 }, // Comp Bank Ref
-            { wch: 15 }, // VAT Status
-            { wch: 15 }, // VAT Duration
-            { wch: 8 }   // Days
+            { wch: 5 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 15 },
+            { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 25 },
+            { wch: 15 }, { wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 12 },
+            { wch: 20 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 30 },
+            { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
+            { wch: 12 }, { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 12 },
+            { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 },
+            { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 },
+            { wch: 15 }, { wch: 8 }
         ];
         ws['!cols'] = colWidths;
 
-        // Create workbook
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Quotations');
-
-        // Generate filename with current date
-        const date = new Date().toISOString().split('T')[0];
-        const filename = `Quotations_${filter}_${date}.xlsx`;
-
-        // Download
+        const filename = `Quotations_${filter}_${new Date().toISOString().split('T')[0]}.xlsx`;
         XLSX.writeFile(wb, filename);
     };
 
+    const exportToPDF = () => {
+        const exportData = getExportData();
+        const doc = new jsPDF('l', 'mm', 'a4'); // Landscape A4
+
+        // Add Header
+        doc.addImage(logoSrc, 'PNG', 14, 10, 30, 15);
+
+        doc.setFontSize(22);
+        doc.setTextColor(0, 168, 170); // Theme Teal
+        doc.text('QUOTATION TRACKER', 50, 20);
+
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Status Filter: ${filter}`, 50, 26);
+        doc.text(`Export Date: ${new Date().toLocaleString()}`, 230, 26);
+
+        // Draw Line
+        doc.setDrawColor(0, 168, 170);
+        doc.setLineWidth(0.5);
+        doc.line(14, 32, 283, 32);
+
+        // Transform data into a multi-row structure for each record
+        // Record 1 (3 rows): 
+        // 1. SR, QUOTE#, BRAND, LOCATION, STATUS
+        // 2. [Grey bg] WORK DESC, COMMENTS, SUPERVISOR
+        // 3. PO#, INV#, TOTAL, RECV AMT, STATUS (FIN)
+
+        const rows = [];
+        exportData.forEach((q) => {
+            // Row 1: Primary identifiers
+            rows.push([
+                { content: `SR: ${q['SR#']}`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+                { content: `QUOTE: ${q['Quote #']}`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+                { content: `BRAND: ${q['Brand']}`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+                { content: `LOCATION: ${q['Location']} (${q['City']})`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+                { content: `STATUS: ${q['Status']}`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: q['Status'] === 'APPROVED' ? [0, 128, 0] : [0, 0, 0] } }
+            ]);
+
+            // Row 2: Secondary info / Details
+            rows.push([
+                { content: `MR#: ${q['MR #']} | Date: ${q['MR Date']} | Date: ${q['Quote Date']}`, colSpan: 2 },
+                { content: `WORK: ${q['Work Desc']}`, colSpan: 3, styles: { halign: 'left' } }
+            ]);
+
+            // Row 3: Financial & Financial References
+            rows.push([
+                { content: `TOTAL (SAR): ${q['Total']}`, styles: { fontStyle: 'bold', textColor: [0, 168, 170] } },
+                { content: `PO#: ${q['PO #']} | INV#: ${q['Inv #']}` },
+                { content: `RECV: ${q['Recv Amt']} | ADV: ${q['Adv Pay']}` },
+                { content: `INV STATUS: ${q['Inv Status']}` },
+                { content: `SUPERVISOR: ${q['Supervisor']}` }
+            ]);
+
+            // Spacer
+            rows.push([{ content: '', colSpan: 5, styles: { cellPadding: 1, fillColor: [255, 255, 255] } }]);
+        });
+
+        autoTable(doc, {
+            body: rows,
+            startY: 40,
+            theme: 'plain',
+            styles: {
+                fontSize: 8,
+                cellPadding: 3,
+                lineColor: [220, 220, 220],
+                lineWidth: 0.1,
+                valign: 'middle'
+            },
+            columnStyles: {
+                0: { cellWidth: 'auto' },
+                1: { cellWidth: 'auto' },
+                2: { cellWidth: 'auto' },
+                4: { halign: 'right' }
+            },
+            margin: { left: 14, right: 14 },
+            didParseCell: function (data) {
+                // Remove borders for spacer rows
+                if (data.row.raw[0].content === '') {
+                    data.cell.styles.lineWidth = 0;
+                }
+            }
+        });
+
+        const filename = `MAAJ_Tracker_${filter}_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(filename);
+    };
+
     return (
-        <div className="p-4 md:p-6 min-h-screen text-[10px] ${themeStyles.container}">
+        <div className={`p-4 md:p-6 min-h-screen text-[10px] ${themeStyles.container}`}>
             {/* Header */}
             <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
                 <div>
@@ -174,6 +225,12 @@ const QuotationList = () => {
                     <p className={colors.textSecondary}>Excel Sync: All Companies Sheet 2025</p>
                 </div>
                 <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+                    <button
+                        onClick={exportToPDF}
+                        className={`${themeStyles.button} ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white justify-center`}
+                    >
+                        <Download size={16} /> Download PDF
+                    </button>
                     <button
                         onClick={exportToExcel}
                         className={`${themeStyles.button} ${darkMode ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'} text-white justify-center`}

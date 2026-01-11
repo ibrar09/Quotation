@@ -179,17 +179,17 @@ const QuotationEditModal = ({ quotation, onClose, onUpdated }) => {
             // Only send fields that the backend expects, not associated data
             const payload = {
                 quote_no: formData.quote_no,
-                sent_at: formData.sent_at, // Added Quote Date
-                mr_no: formData.mr_no,
-                mr_date: formData.mr_date,
+                sent_at: formData.sent_at || null,
+                mr_no: formData.mr_no || null,
+                mr_date: formData.mr_date || null,
                 oracle_ccid: formData.oracle_ccid,
-                work_description: formData.work_description,
-                quote_status: formData.quote_status,
-                work_status: formData.work_status,
-                completion_date: formData.completion_date,
-                completed_by: formData.completed_by,
-                supervisor: formData.supervisor,
-                comments: formData.comments,
+                work_description: formData.work_description || '',
+                quote_status: formData.quote_status || 'DRAFT',
+                work_status: formData.work_status || 'NOT_STARTED',
+                completion_date: formData.completion_date || null,
+                completed_by: formData.completed_by || '',
+                supervisor: formData.supervisor || '',
+                comments: formData.comments || '',
                 brand_name: formData.brand_name,
                 pr_no: formData.pr_no,
                 brand: formData.brand,
@@ -225,8 +225,8 @@ const QuotationEditModal = ({ quotation, onClose, onUpdated }) => {
                     };
                 }),
                 Finance: {
-                    // FORCE UPPERCASE INVOICE STATUS
-                    invoice_status: (formData.Finance.invoice_status || '').toUpperCase(),
+                    // FORCE UPPERCASE INVOICE STATUS AND PROVIDE DEFAULT IF EMPTY
+                    invoice_status: (formData.Finance.invoice_status || 'NOT_SUBMITTED').toUpperCase(),
                     invoice_no: formData.Finance.invoice_no || '',
                     invoice_date: formData.Finance.invoice_date || null,
                     advance_payment: Number(formData.Finance.advance_payment) || 0,
@@ -391,7 +391,7 @@ const QuotationEditModal = ({ quotation, onClose, onUpdated }) => {
                                                 <td className="p-2 relative">
                                                     <input
                                                         className="w-full bg-transparent outline-none text-center p-2 rounded focus:bg-gray-500/10"
-                                                        value={item.item_code}
+                                                        value={item.item_code || ""}
                                                         onChange={(e) => handleItemSearch(index, 'item_code', e.target.value)}
                                                         onFocus={() => setActiveRow(index)}
                                                     />
@@ -412,21 +412,21 @@ const QuotationEditModal = ({ quotation, onClose, onUpdated }) => {
                                                 <td className="p-2">
                                                     <textarea
                                                         className="w-full bg-transparent outline-none p-2 rounded resize-none"
-                                                        value={item.description}
+                                                        value={item.description || ""}
                                                         onChange={(e) => handleItemSearch(index, 'description', e.target.value)}
                                                     />
                                                 </td>
                                                 <td className="p-2">
-                                                    <input className="w-full bg-transparent text-center" value={item.unit} onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)} />
+                                                    <input className="w-full bg-transparent text-center" value={item.unit || ""} onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)} />
                                                 </td>
                                                 <td className="p-2">
-                                                    <input type="number" className="w-full bg-transparent text-center" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)} />
+                                                    <input type="number" className="w-full bg-transparent text-center" value={item.quantity || 0} onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)} />
                                                 </td>
                                                 <td className="p-2">
-                                                    <input type="number" className="w-full bg-transparent text-right opacity-60" value={item.material_price} onChange={(e) => handleItemChange(item.id, 'material_price', e.target.value)} />
+                                                    <input type="number" className="w-full bg-transparent text-right opacity-60" value={item.material_price || 0} onChange={(e) => handleItemChange(item.id, 'material_price', e.target.value)} />
                                                 </td>
                                                 <td className="p-2">
-                                                    <input type="number" className="w-full bg-transparent text-right font-black" value={item.labor_price} onChange={(e) => handleItemChange(item.id, 'labor_price', e.target.value)} />
+                                                    <input type="number" className="w-full bg-transparent text-right font-black" value={item.labor_price || 0} onChange={(e) => handleItemChange(item.id, 'labor_price', e.target.value)} />
                                                 </td>
                                                 <td className="p-2 text-right font-black bg-gray-500/5 rounded-xl">
                                                     {((Number(item.quantity || 0) * Number(item.material_price || 0)) + Number(item.labor_price || 0)).toFixed(2)}

@@ -2,11 +2,12 @@ import { DataTypes } from 'sequelize';
 import sequelize from '../config/db.js'; // ✅ note the .js extension
 
 const PurchaseOrder = sequelize.define('PurchaseOrder', {
-    po_no: { 
-        type: DataTypes.STRING, 
-        primaryKey: true // Use the actual PO number as ID
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    po_no: {
+        type: DataTypes.STRING,
+        unique: true
     },
-    job_id: { 
+    job_id: {
         type: DataTypes.INTEGER,
         references: { model: 'jobs', key: 'id' } // Links back to the Job
     },

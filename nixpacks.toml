@@ -1,0 +1,5 @@
+[build]
+installCommand = "cd quotebackend && npm install"
+
+[start]
+command = "cd quotebackend && npm start"

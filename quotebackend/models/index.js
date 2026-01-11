@@ -21,8 +21,8 @@ JobImage.belongsTo(Job, { foreignKey: 'job_id' });
 Job.hasMany(PurchaseOrder, { foreignKey: 'job_id' });
 PurchaseOrder.belongsTo(Job, { foreignKey: 'job_id' });
 
-PurchaseOrder.hasOne(Finance, { foreignKey: 'po_no' });
-Finance.belongsTo(PurchaseOrder, { foreignKey: 'po_no' });
+PurchaseOrder.hasOne(Finance, { foreignKey: 'po_no', sourceKey: 'po_no', onUpdate: 'CASCADE', onDelete: 'SET NULL' });
+Finance.belongsTo(PurchaseOrder, { foreignKey: 'po_no', targetKey: 'po_no', onUpdate: 'CASCADE', onDelete: 'SET NULL' });
 
 // Named exports (optional)
 export { PriceList, Job, JobItem, PurchaseOrder, Finance, Store, JobImage, sequelize };

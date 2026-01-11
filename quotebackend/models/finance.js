@@ -2,9 +2,10 @@ import { DataTypes } from 'sequelize';
 import sequelize from '../config/db.js'; // ✅ Note the .js extension
 
 const Finance = sequelize.define('Finance', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   invoice_no: {
     type: DataTypes.STRING,
-    primaryKey: true
+    unique: true
   },
   // Links to the Purchase Order
   po_no: {

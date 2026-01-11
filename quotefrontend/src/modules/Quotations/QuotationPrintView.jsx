@@ -109,10 +109,7 @@ const QuotationPrintView = () => {
 
     return (
         <div className="min-h-screen bg-white flex justify-center p-0 m-0 font-sans text-black">
-            {/* Visual marker for Puppeteer debugging */}
-            <div style={{ position: 'fixed', top: 0, right: 0, background: 'red', color: 'white', padding: '2px 5px', fontSize: '10px', zIndex: 9999 }}>
-                PDF VIEW LOADED - ID: {id}
-            </div>
+
             <div id="pdf-ready" className="hidden"></div>
 
             <div

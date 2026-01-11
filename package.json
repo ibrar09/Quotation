@@ -1,0 +1,8 @@
+{
+    "name": "quotation-root",
+    "private": true,
+    "scripts": {
+        "start": "cd quotebackend && npm start",
+        "build": "cd quotebackend && npm install"
+    }
+}

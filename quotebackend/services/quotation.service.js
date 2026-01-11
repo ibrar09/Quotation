@@ -140,15 +140,25 @@ export const updateQuotation = async (jobId, data) => {
     let po = await PurchaseOrder.findOne({ where: { job_id: jobId } });
 
     if (po) {
-      await po.update(poData);
+      // Use static update to safely handle PK changes if any
+      const oldPoNo = po.po_no;
+      await PurchaseOrder.update(poData, { where: { po_no: oldPoNo } });
+      // Re-fetch to get updated state (including cascaded FKs if synced)
+      po = await PurchaseOrder.findOne({ where: { job_id: jobId } });
     } else {
       po = await PurchaseOrder.create({ ...poData, job_id: jobId });
     }
 
     // Update Finance linked to this PO
     if (financeInput) {
-      // Ensure we don't pass nested things into Finance update either
+      // Ensure we don't pass nested things into Finance update
       const { ...finData } = financeInput;
+
+      // Provide valid defaults for ENUM fields to prevent DB errors
+      if (finData.invoice_status === "" || !finData.invoice_status) {
+        finData.invoice_status = 'NOT_SUBMITTED';
+      }
+
       let fin = await Finance.findOne({ where: { po_no: po.po_no } });
       if (fin) {
         await fin.update(finData);
