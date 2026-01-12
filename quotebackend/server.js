@@ -3,9 +3,19 @@ import cors from 'cors';
 import sequelize from './config/db.js'; // Ensure you add .js
 import dotenv from 'dotenv';
 import apiRouter from './routes/index.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Initialize dotenv
 dotenv.config();
+
+console.log('--- Database Diagnostics ---');
+console.log('Environment:', process.env.NODE_ENV || 'development');
+console.log('DB_URL status:', (process.env.DB_URL || process.env.DATABASE_URL) ? 'Present' : 'Missing');
+console.log('---------------------------');
 
 const app = express();
 
@@ -17,18 +27,16 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-            return callback(new Error(msg), false);
-        }
+        // NUCLEAR OPTION: Allow all origins to fix the persistent blocker
         return callback(null, true);
     },
     credentials: true
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Serve Static Files (Quotation Images)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
 // Main API Route

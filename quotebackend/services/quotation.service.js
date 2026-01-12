@@ -53,11 +53,11 @@ export const createQuotation = async (data) => {
     work_description,
     discount,
     quote_status: data.quote_status || 'DRAFT',
-    brand: store ? store.brand : (data.brand || ''),
-    brand_name: store ? store.brand : (data.brand || ''),
-    location: store ? store.mall : (data.location || ''),
-    city: store ? store.city : (data.city || ''),
-    region: store ? store.region : (data.region || ''),
+    brand: store?.brand || data.brand || '',
+    brand_name: store?.brand || data.brand_name || '',
+    location: store?.mall || data.location || '',
+    city: store?.city || data.city || '',
+    region: store?.region || data.region || '',
     store_opening_date,
     continuous_assessment
   });
@@ -106,10 +106,12 @@ export const createQuotation = async (data) => {
   // 🔹 Create Images
   if (images && images.length > 0) {
     for (const imgData of images) {
-      if (imgData) { // Ensure not null
+      if (imgData) {
+        const isPath = typeof imgData === 'string' && imgData.startsWith('/uploads');
         await JobImage.create({
           job_id: job.id,
-          image_data: imgData
+          image_data: isPath ? null : imgData,
+          file_path: isPath ? imgData : null
         });
       }
     }
@@ -192,14 +194,14 @@ export const updateQuotation = async (jobId, data) => {
 
   // 🔹 Handle Images (Replace All)
   if (data.images) {
-    // If images array is sent, we replace existing ones.
-    // NOTE: This assumes frontend sends ALL images every time.
     await JobImage.destroy({ where: { job_id: jobId } });
     for (const imgData of data.images) {
       if (imgData) {
+        const isPath = typeof imgData === 'string' && imgData.startsWith('/uploads');
         await JobImage.create({
           job_id: jobId,
-          image_data: imgData
+          image_data: isPath ? null : imgData,
+          file_path: isPath ? imgData : null
         });
       }
     }
@@ -297,4 +299,21 @@ export const searchQuotations = async (filters) => {
     include: [{ model: Store }],
     order: [['createdAt', 'DESC']]
   });
+};
+
+/**
+ * 🔹 UPLOAD IMAGES SERVICE
+ */
+export const uploadImages = async (jobId, files) => {
+  const images = [];
+  for (const file of files) {
+    const img = await JobImage.create({
+      job_id: jobId,
+      file_path: `/uploads/quotations/${file.filename}`,
+      file_name: file.filename,
+      original_name: file.originalname
+    });
+    images.push(img);
+  }
+  return images;
 };

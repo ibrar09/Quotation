@@ -29,10 +29,10 @@ const DataSync = () => {
             if (response.ok) {
                 setStatus(prev => ({
                     ...prev,
-                    [type]: { type: 'success', message: `Success! ${result.count || 0} records updated.` }
+                    [type]: { type: 'success', message: result.message || `Success! ${result.count || 0} records updated.` }
                 }));
             } else {
-                throw new Error(result.message || 'Upload failed');
+                throw new Error(result.error || result.message || 'Upload failed');
             }
         } catch (error) {
             setStatus(prev => ({
@@ -86,8 +86,8 @@ const DataSync = () => {
 
                 {status[type] && (
                     <div className={`flex items-center gap-3 p-4 rounded-xl border animate-in fade-in slide-in-from-top-2 duration-300 ${status[type].type === 'success' ? (darkMode ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-700') :
-                            status[type].type === 'error' ? (darkMode ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-red-50 border-red-200 text-red-700') :
-                                (darkMode ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-700')
+                        status[type].type === 'error' ? (darkMode ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-red-50 border-red-200 text-red-700') :
+                            (darkMode ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-700')
                         }`}>
                         {status[type].type === 'success' ? <CheckCircle2 size={18} /> :
                             status[type].type === 'error' ? <AlertCircle size={18} /> :
