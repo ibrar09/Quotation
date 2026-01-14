@@ -71,9 +71,10 @@ app.listen(PORT, () => {
     console.log(`==========================================`);
     console.log(`   QUOTATIONS SYSTEM STARTING...          `);
     console.log(`   SERVER RUNNING ON PORT: ${PORT}        `);
-    console.log(`   VERSION: 1.1.1 (Dependency Fix)        `);
+    console.log(`   VERSION: 1.1.3 (Opt. CCID + UI Fix)    `);
     console.log(`==========================================`);
 
     // Start notification cron job
     startNotificationCron();
 });
+// Force Build Trigger: v1.1.2-Deployment-Reload
