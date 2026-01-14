@@ -271,6 +271,15 @@ export const listIntakes = async () => {
 };
 
 /**
+ * 🔹 CHECK IF MR EXISTS
+ */
+export const checkMrExists = async (mrNo) => {
+  if (!mrNo) return false;
+  const existingJob = await Job.findOne({ where: { mr_no: mrNo } });
+  return !!existingJob;
+};
+
+/**
  * 🔹 ADVANCED SEARCH (ANY FIELD)
  */
 export const searchQuotations = async (filters) => {
@@ -307,10 +316,27 @@ export const searchQuotations = async (filters) => {
 export const uploadImages = async (jobId, files) => {
   const images = [];
   for (const file of files) {
+    console.log('🖼️ [SERVICE] Processing uploaded file:', {
+      original: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      path: file.path
+    });
+
+    // Determine path based on storage type
+    let filePath;
+    if (process.env.STORAGE_TYPE === 'CLOUDINARY') {
+      // Cloudinary returns the full URL in `file.path`
+      filePath = file.path;
+    } else {
+      // Local storage: construct relative path for frontend
+      filePath = `/uploads/quotations/${file.filename}`;
+    }
+
     const img = await JobImage.create({
       job_id: jobId,
-      file_path: `/uploads/quotations/${file.filename}`,
-      file_name: file.filename,
+      file_path: filePath,
+      file_name: file.filename || file.originalname, // Cloudinary might not give filename in the same way
       original_name: file.originalname
     });
     images.push(img);

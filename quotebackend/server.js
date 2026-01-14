@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import apiRouter from './routes/index.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { startNotificationCron } from './cron/notification.cron.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,7 +57,7 @@ sequelize.authenticate()
 
 // 2. Health Check Route
 app.get('/', (req, res) => {
-    res.send('Quotations System Server is Running & Connected to DB!');
+    res.send('Quotations System v1.1.1 (Cloudinary Fix) is Running!');
 });
 
 // 3. Database Sync
@@ -70,5 +71,9 @@ app.listen(PORT, () => {
     console.log(`==========================================`);
     console.log(`   QUOTATIONS SYSTEM STARTING...          `);
     console.log(`   SERVER RUNNING ON PORT: ${PORT}        `);
+    console.log(`   VERSION: 1.1.1 (Dependency Fix)        `);
     console.log(`==========================================`);
+
+    // Start notification cron job
+    startNotificationCron();
 });

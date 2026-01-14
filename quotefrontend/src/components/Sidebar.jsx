@@ -1,9 +1,9 @@
 // src/components/Sidebar.jsx
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import { FaChevronLeft, FaChevronRight, FaTimes } from "react-icons/fa";
 
-const Sidebar = ({ darkMode = true }) => {
+const Sidebar = ({ darkMode = true, isMobileOpen = false, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -26,6 +26,41 @@ const Sidebar = ({ darkMode = true }) => {
           id: "quotation-tracker",
           label: "📋 Quotation Tracker",
           route: "/quotations/list",
+          count: 0,
+          color: "blue",
+        },
+        {
+          id: "quotation-cp",
+          label: "📍 CP Quotations",
+          route: "/quotations/list?region=CP",
+          count: 0,
+          color: "blue",
+        },
+        {
+          id: "quotation-cpr",
+          label: "📍 CPR Quotations",
+          route: "/quotations/list?region=CPR",
+          count: 0,
+          color: "blue",
+        },
+        {
+          id: "quotation-ep",
+          label: "📍 EP Quotations",
+          route: "/quotations/list?region=EP",
+          count: 0,
+          color: "blue",
+        },
+        {
+          id: "quotation-wp",
+          label: "📍 WP Quotations",
+          route: "/quotations/list?region=WP",
+          count: 0,
+          color: "blue",
+        },
+        {
+          id: "quotation-wpr",
+          label: "📍 WPR Quotations",
+          route: "/quotations/list?region=WPR",
           count: 0,
           color: "blue",
         },
@@ -59,18 +94,13 @@ const Sidebar = ({ darkMode = true }) => {
         }
       ],
     },
-    // {
-    //   id: "finance",
-    //   label: "Finance & Invoicing",
-    //   icon: "💰",
-    //   route: "/finance",
-    // },
     {
       id: "master-data",
       label: "Master Data (AOR)",
       icon: "🗄️",
       subItems: [
         { id: "md-view", label: "Dashboard View", route: "/master-data", color: "blue" },
+        { id: "md-custom", label: "Custom Stores", route: "/admin/custom-stores", color: "orange" },
         { id: "md-sync", label: "Sync / Upload", route: "/admin/data-sync", color: "indigo" },
       ]
     },
@@ -80,6 +110,7 @@ const Sidebar = ({ darkMode = true }) => {
       icon: "💲",
       subItems: [
         { id: "pl-view", label: "Rate Card View", route: "/rate-card", color: "green" },
+        { id: "pl-custom", label: "Custom PL / Items", route: "/admin/custom-pricelist", color: "purple" },
         { id: "pl-sync", label: "Sync / Upload", route: "/admin/data-sync", color: "indigo" },
       ]
     },
@@ -100,7 +131,24 @@ const Sidebar = ({ darkMode = true }) => {
     navigate(route);
   };
 
-  const isActiveRoute = (route) => location.pathname === route;
+  const isActiveRoute = (itemRoute) => {
+    if (!itemRoute) return false;
+
+    // Exact match for both path and query string
+    const currentFull = location.pathname + location.search;
+
+    // Normalizing paths (ensuring /quotations/list doesn't match /quotations/list?region=CP)
+    if (itemRoute.includes('?')) {
+      return currentFull === itemRoute;
+    }
+
+    // If itemRoute is the base list, only highlight if current search is empty
+    if (itemRoute === '/quotations/list') {
+      return location.pathname === '/quotations/list' && !location.search;
+    }
+
+    return location.pathname === itemRoute;
+  };
 
   const getBadgeClass = (color) => {
     switch (color) {
@@ -121,7 +169,9 @@ const Sidebar = ({ darkMode = true }) => {
 
   return (
     <div
-      className={`flex flex-col h-screen transition-all duration-300
+      className={`flex flex-col h-screen transition-all duration-300 z-50
+      fixed md:relative
+      ${isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
       ${isOpen ? "w-64" : "w-20"}
       ${darkMode
           ? "bg-gradient-to-b from-[#6a0dad] to-[#9b4dcc] text-white"
@@ -131,11 +181,21 @@ const Sidebar = ({ darkMode = true }) => {
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-white/20">
         {isOpen && <span className="text-lg font-bold">Maaj</span>}
+
+        {/* Desktop Toggle */}
         <button
           onClick={toggleSidebar}
-          className="p-2 rounded-md hover:bg-white/20"
+          className="p-2 rounded-md hover:bg-white/20 hidden md:block"
         >
           {isOpen ? <FaChevronLeft /> : <FaChevronRight />}
+        </button>
+
+        {/* Mobile Close Button */}
+        <button
+          onClick={onClose}
+          className="p-2 rounded-md hover:bg-white/20 md:hidden"
+        >
+          <FaTimes />
         </button>
       </div>
 
@@ -148,7 +208,7 @@ const Sidebar = ({ darkMode = true }) => {
               <div
                 onClick={() => handleMainClick(item)}
                 className={`flex items-center p-3 mx-2 rounded-xl cursor-pointer transition
-                ${isActiveRoute(item.route)
+                ${isActiveRoute(item.route) || (item.subItems && item.subItems.some(sub => isActiveRoute(sub.route)))
                     ? "bg-blue-600 text-white shadow"
                     : "hover:bg-white/20"
                   }`}
@@ -173,7 +233,7 @@ const Sidebar = ({ darkMode = true }) => {
                         onClick={() => handleSubClick(sub.route)}
                         className={`flex items-center justify-between px-3 py-1 text-xs rounded-md cursor-pointer
                         ${isActiveRoute(sub.route)
-                            ? "bg-white/30 font-semibold"
+                            ? "bg-white/50 font-bold border-l-2 border-white"
                             : "hover:bg-white/20"
                           }`}
                       >
