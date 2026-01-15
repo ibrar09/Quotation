@@ -9,6 +9,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logoSrc from '../../assets/Maaj-Logo 04.png';
 import QuotationEditModal from './QuotationEditModal';
+import BrandManagerModal from './BrandManagerModal';
 
 const QuotationList = () => {
     const [quotations, setQuotations] = useState([]);
@@ -16,34 +17,117 @@ const QuotationList = () => {
     const [searchParams] = useSearchParams();
     const [regionFilter, setRegionFilter] = useState(searchParams.get('region') || 'ALL');
     const [statusFilter, setStatusFilter] = useState(searchParams.get('status')?.toUpperCase() || 'ALL');
+    const [brandFilter, setBrandFilter] = useState(searchParams.get('brand') || 'ALL');
     const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
     const [selectedQuotation, setSelectedQuotation] = useState(null);
     const [importing, setImporting] = useState(false);
     const [highlightedRow, setHighlightedRow] = useState(null);
+    const [groupBrands, setGroupBrands] = useState([]); // [NEW] Stores brands for current group filter
+    const [showBrandManager, setShowBrandManager] = useState(false); // [NEW] Toggle for Brand Manager
     const navigate = useNavigate();
     const { darkMode, colors, themeStyles } = useTheme();
     const rowRefs = useRef({});
 
     // Define all available filters
     const regions = ['ALL', 'CP', 'CPR', 'EP', 'WP', 'WPR'];
-    const statuses = ['ALL', 'DRAFT', 'SENT', 'APPROVED', 'REVISED', 'COMPLETED', 'CANCELLED'];
+    // Status definitions moved to line 191 for consistency
 
     useEffect(() => {
         const urlRegion = searchParams.get('region');
         const urlStatus = searchParams.get('status');
+        const urlBrand = searchParams.get('brand');
         const urlSearch = searchParams.get('search');
 
-        if (urlRegion) setRegionFilter(urlRegion);
-        if (urlStatus) setStatusFilter(urlStatus.toUpperCase());
+        setRegionFilter(urlRegion || 'ALL');
+        setStatusFilter(urlStatus ? urlStatus.toUpperCase() : 'ALL');
+        setBrandFilter(urlBrand || 'ALL');
+
         if (urlSearch) {
             setSearchTerm(urlSearch);
-            // Highlight the row briefly
             setHighlightedRow(urlSearch);
-            setTimeout(() => setHighlightedRow(null), 3000); // Remove highlight after 3s
+            setTimeout(() => setHighlightedRow(null), 3000);
+        } else {
+            setSearchTerm('');
         }
 
         fetchQuotations();
     }, [searchParams]);
+
+    // [NEW] Fetch Brand Group members whenever brandFilter changes
+    const fetchGroupBrands = () => {
+        if (brandFilter !== 'ALL') {
+            axios.get(`${API_BASE_URL}/api/client-groups/${brandFilter}/brands`)
+                .then(res => {
+                    if (res.data.success && res.data.data.length > 0) {
+                        const brands = res.data.data.map(b => b.brand_name.toUpperCase());
+                        // Also include the group name itself (e.g. 'ALSHAYA') just in case
+                        if (!brands.includes(brandFilter.toUpperCase())) brands.push(brandFilter.toUpperCase());
+                        setGroupBrands(brands);
+                    } else {
+                        setGroupBrands([]); // No group found, revert to simple string match
+                    }
+                })
+                .catch(() => setGroupBrands([]));
+        } else {
+            setGroupBrands([]);
+        }
+    };
+
+    useEffect(() => {
+        fetchGroupBrands();
+    }, [brandFilter]);
+
+    // Drag-to-Scroll State
+    const tableContainerRef = useRef(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const [startX, setStartX] = useState(0);
+    const [scrollLeft, setScrollLeft] = useState(0);
+
+    // [NEW] Copy Helper
+    const copyToClipboard = async (text, label) => {
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+            // Optional: Simple toast or Alert, but standard is subtle. 
+            // Let's use a quick alert or better, assume user knows.
+            // For now, let's show a small visual queue or nothing if user is fast.
+            // Actually user asked for ease.
+        } catch (err) {
+            console.error('Failed to copy', err);
+        }
+    };
+
+    const handleCellDoubleClick = (e, text, label) => {
+        if (!text) return;
+        e.stopPropagation(); // Prevent row selection if any
+        copyToClipboard(text, label);
+        // Show tooltip or temporary indicator?
+        // Let's rely on standard browser behavior or just a small visual feedback if possible.
+        // For simplicity:
+        alert(`Copied ${label}: ${text}`);
+    };
+
+    const handleMouseDown = (e) => {
+        setIsDragging(true);
+        setStartX(e.pageX - tableContainerRef.current.offsetLeft);
+        setScrollLeft(tableContainerRef.current.scrollLeft);
+    };
+
+    const handleMouseLeave = () => {
+        setIsDragging(false);
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+    };
+
+    const handleMouseMove = (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        const x = e.pageX - tableContainerRef.current.offsetLeft;
+        const walk = (x - startX) * 2; // Scroll multiplier (speed)
+        tableContainerRef.current.scrollLeft = scrollLeft - walk;
+    };
 
     // Auto-scroll to highlighted row
     useEffect(() => {
@@ -123,28 +207,49 @@ const QuotationList = () => {
         // Status Filter
         const matchesStatus = statusFilter === 'ALL' ? true : q.quote_status === statusFilter;
 
+        // [NEW] Brand Filter with Group Support
+        let matchesBrand = true;
+        if (brandFilter !== 'ALL') {
+            const qBrand = (q.brand || q.brand_name || q.Store?.brand || '').toUpperCase();
+
+            if (groupBrands.length > 0) {
+                // Check if the brand exists in the fetched group list (Exact match needed for list items)
+                // We use loose match inside the list? No, generally exact or partial against one of them.
+                // Let's check if qBrand includes any of the group brands (or vice versa due to partial input)
+                matchesBrand = groupBrands.some(gb => qBrand.includes(gb) || gb.includes(qBrand));
+            } else {
+                // Only Simple String Match (fallback)
+                matchesBrand = qBrand.includes(brandFilter.toUpperCase());
+            }
+        }
+
         const s = searchTerm.toLowerCase();
         const matchesSearch = !searchTerm ||
             (q.quote_no && q.quote_no.toLowerCase().includes(s)) ||
             (q.mr_no && q.mr_no.toLowerCase().includes(s)) ||
+            (q.pr_no && q.pr_no.toLowerCase().includes(s)) ||
+            (q.PurchaseOrders?.[0]?.po_no && q.PurchaseOrders[0].po_no.toLowerCase().includes(s)) ||
+            (q.oracle_ccid && q.oracle_ccid.toString().includes(s)) ||
             (q.work_description && q.work_description.toLowerCase().includes(s)) ||
             (q.brand && q.brand.toLowerCase().includes(s)) ||
             (q.Store?.brand && q.Store.brand.toLowerCase().includes(s));
 
-        return matchesRegion && matchesStatus && matchesSearch;
+        return matchesRegion && matchesStatus && matchesSearch && matchesBrand;
     });
+
+    // Updated Statuses as per Step 2461
+    const statuses = ['ALL', 'DRAFT', 'READY_TO_SEND', 'SENT', 'PO_RECEIVED', 'APPROVED', 'PAID', 'CANCELLED'];
 
     // Helper to style different statuses
     const getStatusColor = (status) => {
         switch (status) {
-            case 'COMPLETED': return 'text-green-600';
+            case 'PAID': return 'text-green-700 font-extrabold';
             case 'APPROVED': return 'text-green-600';
+            case 'PO_RECEIVED': return 'text-cyan-600';
             case 'SENT': return 'text-blue-500';
-            case 'REVISED': return 'text-blue-500';
-            case 'REJECTED': return 'text-red-500';
+            case 'READY_TO_SEND': return 'text-indigo-500';
             case 'CANCELLED': return 'text-red-500';
             case 'DRAFT': return 'text-orange-500';
-            case 'INTAKE': return 'text-purple-500';
             default: return darkMode ? 'text-gray-300' : 'text-black';
         }
     };
@@ -317,13 +422,23 @@ const QuotationList = () => {
             <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
                 <div>
                     <h1 className="text-xl md:text-2xl font-black uppercase tracking-wider mb-1">
-                        {regionFilter !== 'ALL' ? `${regionFilter} ` : ''}Quotation Tracker
+                        {brandFilter !== 'ALL' ? `${brandFilter} ` : ''}{regionFilter !== 'ALL' ? `${regionFilter} ` : ''}Quotation Tracker
                     </h1>
                     <p className={colors.textSecondary}>
-                        {regionFilter !== 'ALL' ? `Viewing quotations for ${regionFilter} region` : 'Excel Sync: All Companies Sheet 2025'}
+                        Viewing quotations for {brandFilter !== 'ALL' ? `${brandFilter}` : 'All Brands'} {regionFilter !== 'ALL' ? `in ${regionFilter} region` : ''}
                     </p>
                 </div>
+
                 <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+                    {/* [NEW] Brand Manager Button */}
+                    {brandFilter !== 'ALL' && (
+                        <button
+                            onClick={() => setShowBrandManager(true)}
+                            className={`${themeStyles.button} bg-purple-600 hover:bg-purple-700 text-white justify-center`}
+                        >
+                            <Edit size={16} /> Manage {brandFilter}
+                        </button>
+                    )}
                     <button
                         onClick={exportToPDF}
                         className={`${themeStyles.button} ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white justify-center`}
@@ -432,8 +547,16 @@ const QuotationList = () => {
                 </div>
             </div>
 
-            {/* Table */}
-            <div className={`overflow-x-auto shadow-xl border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            {/* Table Container with Drag-to-Scroll */}
+            <div
+                ref={tableContainerRef}
+                onMouseDown={handleMouseDown}
+                onMouseLeave={handleMouseLeave}
+                onMouseUp={handleMouseUp}
+                onMouseMove={handleMouseMove}
+                className={`overflow-x-auto shadow-xl border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
+                ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} active:cursor-grabbing`}
+            >
                 <table className="w-full text-left border-collapse whitespace-nowrap">
                     <thead>
                         <tr className={themeStyles.tableHeader}>
@@ -539,17 +662,17 @@ const QuotationList = () => {
                                         </div>
                                     </td>
                                     <td className="p-2 text-center opacity-60">{i + 1}</td>
-                                    <td className="p-2">{q.sent_at || '-'}</td>
+                                    <td onDoubleClick={(e) => handleCellDoubleClick(e, q.sent_at, 'Date')} className="p-2 cursor-copy hover:bg-black/5" title="Double-click to copy">{q.sent_at || '-'}</td>
 
                                     {/* Quotation Status Column */}
                                     <td className={`p-2 font-bold text-center border-r ${getStatusColor(q.quote_status)}`}>
                                         {q.quote_status || 'DRAFT'}
                                     </td>
 
-                                    <td className="p-2 font-bold">{q.quote_no}</td>
-                                    <td className="p-2">{q.mr_date || '-'}</td>
-                                    <td className="p-2">{q.mr_no || '-'}</td>
-                                    <td className="p-2">{q.pr_no || '-'}</td>
+                                    <td onDoubleClick={(e) => handleCellDoubleClick(e, q.quote_no, 'Quote No')} className="p-2 font-bold cursor-copy hover:bg-black/5" title="Double-click to copy">{q.quote_no}</td>
+                                    <td onDoubleClick={(e) => handleCellDoubleClick(e, q.mr_date, 'MR Date')} className="p-2 cursor-copy hover:bg-black/5" title="Double-click to copy">{q.mr_date || '-'}</td>
+                                    <td onDoubleClick={(e) => handleCellDoubleClick(e, q.mr_no, 'MR No')} className="p-2 cursor-copy hover:bg-black/5" title="Double-click to copy">{q.mr_no || '-'}</td>
+                                    <td onDoubleClick={(e) => handleCellDoubleClick(e, q.pr_no, 'PR No')} className="p-2 cursor-copy hover:bg-black/5" title="Double-click to copy">{q.pr_no || '-'}</td>
                                     <td className="p-2">{q.brand || q.brand_name || q.Store?.brand || '-'}</td>
                                     <td className="p-2">{q.location || q.Store?.mall || '-'}</td>
                                     <td className="p-2">{q.city || q.Store?.city || '-'}</td>
@@ -564,7 +687,7 @@ const QuotationList = () => {
                                     <td className="p-2 truncate max-w-[100px]" title={q.craftsperson_notes}>
                                         {q.craftsperson_notes || '-'}
                                     </td>
-                                    <td className="p-2 font-bold text-green-600">{po.po_no || '-'}</td>
+                                    <td onDoubleClick={(e) => handleCellDoubleClick(e, po.po_no, 'PO No')} className="p-2 font-bold text-green-600 cursor-copy hover:bg-black/5" title="Double-click to copy">{po.po_no || '-'}</td>
                                     <td className="p-2">{po.po_date || '-'}</td>
                                     <td className="p-2">{po.eta || '-'}</td>
                                     <td className="p-2">{po.update_notes || '-'}</td>
@@ -573,11 +696,11 @@ const QuotationList = () => {
                                     <td className="p-2 text-right">{po.vat_15 || q.vat_amount || '0.00'}</td>
                                     <td className="p-2 text-right font-bold">{po.total_inc_vat || q.grand_total || '0.00'}</td>
                                     <td className="p-2 font-bold text-green-600">{fin.invoice_status || '-'}</td>
-                                    <td className="p-2 font-bold text-green-600">{fin.invoice_no || '-'}</td>
+                                    <td onDoubleClick={(e) => handleCellDoubleClick(e, fin.invoice_no, 'Invoice No')} className="p-2 font-bold text-green-600 cursor-copy hover:bg-black/5" title="Double-click to copy">{fin.invoice_no || '-'}</td>
                                     <td className="p-2">{fin.invoice_date || '-'}</td>
                                     <td className="p-2">{q.supervisor || '-'}</td>
                                     <td className="p-2 truncate max-w-[150px]" title={q.comments}>{q.comments || '-'}</td>
-                                    <td className="p-2">{q.oracle_ccid || '-'}</td>
+                                    <td onDoubleClick={(e) => handleCellDoubleClick(e, q.oracle_ccid, 'Store CCID')} className="p-2 cursor-copy hover:bg-black/5" title="Double-click to copy">{q.oracle_ccid || '-'}</td>
                                     <td className="p-2 text-right">{fin.advance_payment || '0.00'}</td>
                                     <td className="p-2">{fin.payment_ref || '-'}</td>
                                     <td className="p-2 text-right font-bold text-green-700">{fin.received_amount || '0.00'}</td>
@@ -598,14 +721,27 @@ const QuotationList = () => {
                 </table>
             </div>
 
-            {selectedQuotation && (
-                <QuotationEditModal
-                    quotation={selectedQuotation}
-                    onClose={() => setSelectedQuotation(null)}
-                    onUpdated={fetchQuotations}
-                />
-            )}
-        </div>
+            {/* Modals */}
+            {
+                selectedQuotation && (
+                    <QuotationEditModal
+                        isOpen={!!selectedQuotation}
+                        onClose={() => setSelectedQuotation(null)}
+                        quotation={selectedQuotation}
+                        isDarkMode={darkMode}
+                        onUpdate={fetchQuotations}
+                    />
+                )
+            }
+
+            {/* [NEW] Brand Manager Modal */}
+            <BrandManagerModal
+                isOpen={showBrandManager}
+                onClose={() => setShowBrandManager(false)}
+                groupName={brandFilter}
+                onUpdate={fetchGroupBrands}
+            />
+        </div >
     );
 };
 

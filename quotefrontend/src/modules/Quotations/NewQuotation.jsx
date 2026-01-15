@@ -124,24 +124,8 @@ const NewQuotation = () => {
         }));
 
         // Auto-fill items from latest job ONLY if current items are empty or just the default row
-        if (jobs.length > 0 && items.length === 1 && !items[0].code && !items[0].description) {
-          const latestJob = jobs[0];
-          if (latestJob.JobItems && latestJob.JobItems.length > 0) {
-            setItems(latestJob.JobItems.map(ji => {
-              const material = Number(ji.material_price) || 0;
-              const labor = Number(ji.labor_price) || 0;
-              return {
-                id: crypto.randomUUID(),
-                code: ji.item_code || '',
-                description: ji.description || '',
-                unit: ji.unit || 'PCS',
-                qty: ji.quantity || 1,
-                material: material,
-                labor: labor
-              };
-            }));
-          }
-        }
+        // Auto-fill items REMOVED as per user request (Step 2404). 
+        // We only want Store Details, not previous job items.
         setStoreStatus('success');
         return true;
       } else {
@@ -911,6 +895,8 @@ const NewQuotation = () => {
                 onChange={(e) => handleHeaderChange('attentionTo', e.target.value)}
                 onKeyDown={(e) => handleHeaderKeyDown(e, 'attentionTo')}
                 onFocus={(e) => e.target.select()}
+                spellCheck={true}
+                lang="en"
               />
               <span className="print-only text-black">{header.attentionTo}</span>
             </div>
@@ -1101,13 +1087,16 @@ const NewQuotation = () => {
             <div className="col-span-1 bg-gray-200 border-r border-b border-black p-1 text-[9px] font-bold uppercase text-black">MR Desc.</div>
             <div className="col-span-7 border-r border-b border-black p-1.5">
               <textarea
+                name="description"
                 data-row="header"
                 data-col="mrDesc"
-                className="w-full outline-none font-semibold uppercase bg-transparent resize-none h-8 leading-tight no-print text-black"
+                className="w-full outline-none font-semibold bg-transparent resize-none h-24 leading-tight no-print text-black"
                 style={{ color: 'black' }}
-                value={header.mrDesc || header.description}
-                onChange={(e) => handleHeaderChange('mrDesc', e.target.value)}
-                placeholder="ENTER WORK DESCRIPTION HERE..."
+                value={header.description}
+                onChange={(e) => handleHeaderChange('description', e.target.value)}
+                placeholder="Enter final comments..."
+                spellCheck={true}
+                lang="en-US"
                 onKeyDown={(e) => handleHeaderKeyDown(e, 'mrDesc')}
                 onFocus={(e) => e.target.select()}
               />
@@ -1124,7 +1113,7 @@ const NewQuotation = () => {
                 data-row="header"
                 data-col="openingDate"
                 type="date"
-                className="w-full outline-none font-semibold uppercase bg-transparent no-print"
+                className="w-full outline-none font-semibold bg-transparent no-print"
                 value={header.openingDate}
                 onChange={(e) => handleHeaderChange('openingDate', e.target.value)}
                 onKeyDown={(e) => handleHeaderKeyDown(e, 'openingDate')}
@@ -1144,7 +1133,7 @@ const NewQuotation = () => {
                 data-row="header"
                 data-col="continuous_assessment"
                 rows={3}
-                className="w-full resize-none outline-none font-semibold uppercase bg-transparent no-print text-black"
+                className="w-full resize-none outline-none font-semibold bg-transparent no-print text-black"
                 style={{ color: 'black' }}
                 placeholder="Continuous assessment notes..."
                 value={header.continuous_assessment || ''}
@@ -1250,10 +1239,9 @@ const NewQuotation = () => {
                           placeholder="Item Description..."
                           value={item.description}
                           rows={1}
-                          onInput={(e) => {
-                            e.target.style.height = 'auto';
-                            e.target.style.height = e.target.scrollHeight + 'px';
-                          }}
+                          onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                          spellCheck={true}
+                          lang="en-US"
                           ref={(el) => {
                             if (el) {
                               el.style.height = 'auto';
@@ -1278,7 +1266,7 @@ const NewQuotation = () => {
                         <input
                           data-row={index}
                           data-col="unit"
-                          className="w-full outline-none text-center bg-transparent no-print font-bold uppercase"
+                          className="w-full outline-none text-center bg-transparent no-print font-bold"
                           value={item.unit}
                           onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)}
                           onFocus={(e) => {

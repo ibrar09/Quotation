@@ -1,11 +1,20 @@
 import React, { useState } from "react";
-import { FaUserCircle, FaSearch, FaSun, FaMoon, FaBars } from "react-icons/fa";
+import { FaUserCircle, FaSearch, FaSun, FaMoon, FaBars, FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import NotificationBell from "./NotificationBell";
 
 const TopBar = ({ pageTitle, onMenuClick }) => {
   const { darkMode, toggleTheme, themeStyles } = useTheme(); // get global theme
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleSearch = (e) => {
+    if (e.key === 'Enter') {
+      navigate(`/quotations/list?search=${encodeURIComponent(searchQuery)}`);
+    }
+  };
 
   return (
     <div
@@ -15,7 +24,7 @@ const TopBar = ({ pageTitle, onMenuClick }) => {
           : "bg-gradient-to-r from-white to-gray-100 border-gray-200 text-gray-800"
         }`}
     >
-      {/* Page Title */}
+      {/* Page Title & Navigation */}
       <div className="flex items-center space-x-4">
         {/* Mobile Menu Button */}
         <button
@@ -24,6 +33,25 @@ const TopBar = ({ pageTitle, onMenuClick }) => {
         >
           <FaBars className="text-xl" />
         </button>
+
+        {/* Global Navigation Buttons */}
+        <div className="hidden md:flex items-center gap-1 mr-2">
+          <button
+            onClick={() => navigate(-1)}
+            className={`p-1.5 rounded-full transition-all hover:scale-110 active:scale-95 ${darkMode ? 'hover:bg-white/10 text-white/80' : 'hover:bg-black/5 text-gray-500'}`}
+            title="Go Back"
+          >
+            <FaChevronLeft size={14} />
+          </button>
+          <button
+            onClick={() => navigate(1)}
+            className={`p-1.5 rounded-full transition-all hover:scale-110 active:scale-95 ${darkMode ? 'hover:bg-white/10 text-white/80' : 'hover:bg-black/5 text-gray-500'}`}
+            title="Go Forward"
+          >
+            <FaChevronRight size={14} />
+          </button>
+        </div>
+
         <h1 className="text-lg md:text-xl font-bold transition-colors duration-300">{pageTitle}</h1>
       </div>
 
@@ -33,14 +61,20 @@ const TopBar = ({ pageTitle, onMenuClick }) => {
         <div className="relative">
           <input
             type="text"
-            placeholder="Search..."
+            placeholder="Search Quote #, MR #, PO #, Brand..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearch}
             className={`pl-10 pr-4 py-2 rounded-full border text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 shadow-sm transition-all duration-300
               ${darkMode
                 ? "bg-gray-900 border-gray-700 text-gray-200 placeholder-gray-500"
                 : "bg-white border-gray-200 text-gray-700"
               }`}
           />
-          <FaSearch className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm ${darkMode ? "text-gray-400" : "text-gray-400"}`} />
+          <FaSearch
+            onClick={() => navigate(`/quotations/list?search=${encodeURIComponent(searchQuery)}`)}
+            className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm cursor-pointer ${darkMode ? "text-gray-400" : "text-gray-400"}`}
+          />
         </div>
 
         {/* Theme Toggle */}
