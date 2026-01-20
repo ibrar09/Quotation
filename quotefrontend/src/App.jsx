@@ -1,52 +1,97 @@
 // src/App.jsx
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import DashboardLayout from "./pages/Dashboard"; // ✅ Correct import
-import Dashboard from "./pages/Dashboardcom";
-import NewQuotation from "./modules/Quotations/NewQuotation";
-import QuotationList from "./modules/Quotations/QuotationList";
-import SendQuotation from "./modules/Quotations/SendQuotation";
-import QuotationIntake from "./modules/Quotations/QuotationIntake";
-import IntakeList from "./modules/Quotations/IntakeList";
-import WorkList from "./modules/Work/WorkList";
-import QuotationPrintView from "./modules/Quotations/QuotationPrintView";
-import DataSync from "./modules/Admin/DataSync";
-import MasterData from "./modules/Admin/MasterData";
-import PriceList from "./modules/Admin/PriceList";
-import CustomPriceList from "./modules/Admin/CustomPriceList";
-import CustomStores from "./modules/Admin/CustomStores";
-import RecycleBin from "./pages/RecycleBin";
+import { AuthProvider } from "./context/AuthContext";
+import { ThemeProvider } from "./context/ThemeContext";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Login from "./pages/Login";
+
+// 🔹 Loading Component
+// 🔹 Loading Component
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+  </div>
+);
+
+// 🔹 Lazy Load Pages for Performance
+const DashboardLayout = lazy(() => import("./pages/Dashboard"));
+const Dashboard = lazy(() => import("./pages/Dashboardcom"));
+const NewQuotation = lazy(() => import("./modules/Quotations/NewQuotation"));
+const QuotationList = lazy(() => import("./modules/Quotations/QuotationList"));
+const SendQuotation = lazy(() => import("./modules/Quotations/SendQuotation"));
+const QuotationIntake = lazy(() => import("./modules/Quotations/QuotationIntake"));
+const IntakeList = lazy(() => import("./modules/Quotations/IntakeList"));
+const WorkList = lazy(() => import("./modules/Work/WorkList"));
+const QuotationPrintView = lazy(() => import("./modules/Quotations/QuotationPrintView"));
+const DataSync = lazy(() => import("./modules/Admin/DataSync"));
+const MasterData = lazy(() => import("./modules/Admin/MasterData"));
+const PriceList = lazy(() => import("./modules/Admin/PriceList"));
+const CustomPriceList = lazy(() => import("./modules/Admin/CustomPriceList"));
+const CustomStores = lazy(() => import("./modules/Admin/CustomStores"));
+const UserManagement = lazy(() => import("./modules/Admin/UserManagement"));
+const RecycleBin = lazy(() => import("./pages/RecycleBin"));
+const AnalyticsDashboard = lazy(() => import("./pages/AnalyticsDashboard")); // [NEW]
+const ProfilePage = lazy(() => import("./pages/ProfilePage")); // [NEW]
 
 function App() {
   return (
     <Router>
-      <Routes>
-        {/* Standalone PDF View (No Sidebar) */}
-        <Route path="/quotations/print-view/:id" element={<QuotationPrintView />} />
+      <ThemeProvider>
+        <AuthProvider>
+          <Suspense fallback={<LoadingSpinner />}>
+            <Routes>
+              {/* Public Route */}
+              <Route path="/login" element={<Login />} />
 
-        <Route path="/" element={<DashboardLayout />}>
-          {/* Default dashboard page */}
-          <Route index element={<Dashboard />} />
+              {/* Profile Route - Protected */}
+              <Route path="/profile" element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <ProfilePage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
 
-          {/* Quotation Routes */}
-          <Route path="quotations/list" element={<QuotationList />} />
-          <Route path="quotations/new" element={<QuotationIntake />} />
-          <Route path="quotations/intakes" element={<IntakeList />} />
-          <Route path="quotations/new-quotation" element={<NewQuotation />} />
-          <Route path="quotations/send/:id" element={<SendQuotation />} />
 
-          {/* Work Routes */}
-          <Route path="work/list" element={<WorkList />} />
+              {/* Standalone PDF View (No Sidebar) - Protected? Yes */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="/quotations/print-view/:id" element={<QuotationPrintView />} />
+              </Route>
 
-          {/* Admin Routes */}
-          <Route path="admin/data-sync" element={<DataSync />} />
-          <Route path="admin/custom-stores" element={<CustomStores />} />
-          <Route path="admin/custom-pricelist" element={<CustomPriceList />} />
-          <Route path="master-data" element={<MasterData />} />
-          <Route path="rate-card" element={<PriceList />} />
-          <Route path="recycle-bin" element={<RecycleBin />} />
-        </Route>
-      </Routes>
+              {/* Dashboard Layout - Protected */}
+              <Route path="/" element={<ProtectedRoute />}>
+                <Route element={<DashboardLayout />}>
+                  {/* Default dashboard page */}
+                  <Route index element={<Dashboard />} />
+
+                  {/* Analytics Dashboard */}
+                  <Route path="/analytics" element={<AnalyticsDashboard />} />
+
+                  {/* Quotation Routes */}
+                  <Route path="quotations/list" element={<QuotationList />} />
+                  <Route path="quotations/new" element={<QuotationIntake />} />
+                  <Route path="quotations/intakes" element={<IntakeList />} />
+                  <Route path="quotations/new-quotation" element={<NewQuotation />} />
+                  <Route path="quotations/send/:id" element={<SendQuotation />} />
+
+                  {/* Work Routes */}
+                  <Route path="work/list" element={<WorkList />} />
+
+                  {/* Admin Routes */}
+                  <Route path="admin/data-sync" element={<DataSync />} />
+                  <Route path="admin/users" element={<UserManagement />} />
+                  <Route path="admin/custom-stores" element={<CustomStores />} />
+                  <Route path="admin/custom-pricelist" element={<CustomPriceList />} />
+                  <Route path="master-data" element={<MasterData />} />
+                  <Route path="rate-card" element={<PriceList />} />
+                  <Route path="recycle-bin" element={<RecycleBin />} />
+                </Route>
+              </Route>
+            </Routes>
+          </Suspense>
+        </AuthProvider>
+      </ThemeProvider>
     </Router>
   );
 }

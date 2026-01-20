@@ -2,8 +2,8 @@
 node_modules/
 
 # Environment Variables
-.env
-.env.*
+# .env
+# .env.*
 
 # Logs & Debug
 logs
@@ -18,3 +18,4 @@ temp_*.*
 # OS files
 .DS_Store
 Thumbs.db
+.vercel

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, X, Save, ArrowRight, Search, Loader2, CheckCircle2, AlertCircle, Trash2, Plus, Printer, Download, Upload } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
+import toast, { Toaster } from 'react-hot-toast';
 import logoSrc from '../../assets/Maaj-Logo 04.png';
 import signature from '../../assets/signature.jpeg';
 import stamp from '../../assets/stamp.jpeg';
@@ -113,13 +114,13 @@ const NewQuotation = () => {
 
         setHeader(prev => ({
           ...prev,
-          brand: store.brand || prev.brand,
-          city: store.city || prev.city,
-          location: store.mall || prev.location,
+          brand: prev.brand ? prev.brand : (store.brand || ''),
+          city: prev.city ? prev.city : (store.city || ''),
+          location: prev.location ? prev.location : (store.mall || ''),
           storeCcid: store.oracle_ccid,
-          attentionTo: store.fm_manager || store.fm_supervisor || prev.attentionTo,
-          region: store.region || prev.region,
-          openingDate: store.opening_date || prev.openingDate,
+          attentionTo: prev.attentionTo ? prev.attentionTo : (store.fm_manager || store.fm_supervisor || ''),
+          region: prev.region ? prev.region : (store.region || ''),
+          openingDate: prev.openingDate ? prev.openingDate : (store.opening_date || ''),
           description: prev.mrDesc || prev.description || ''
         }));
 
@@ -590,6 +591,7 @@ const NewQuotation = () => {
         quote_no: header.quoteNo,
         mr_no: header.mrNo,
         mr_date: header.mrRecDate || null,
+        mr_priority: header.mrPriority || 'Normal',
         oracle_ccid: header.storeCcid,
         work_description: header.mrDesc || header.description,
         brand: header.brand,
@@ -599,7 +601,19 @@ const NewQuotation = () => {
         store_opening_date: header.openingDate || null,
         continuous_assessment: header.continuous_assessment,
         quote_status: status,
+        // Financial fields
         discount: Number(adj.discount) || 0,
+        transportation: Number(adj.transportation) || 0,
+        // Quotation metadata
+        version: header.version || '1.0',
+        validity: header.validity || '30 Days',
+        currency: header.currency || 'SAR',
+        // Additional fields
+        sent_at: header.date || new Date().toISOString().split('T')[0],
+        completion_date: completionDate || null,
+        warranty: warranty || null,
+        terms: terms || null,
+        attentionTo: header.attentionTo || null,
         items: items.filter(i => i.code || i.description).map(item => ({
           item_code: item.code,
           description: item.description,
@@ -640,13 +654,25 @@ const NewQuotation = () => {
           setRawFiles([]);
         }
 
+        // Show success toast
+        toast.success(`✅ Draft saved successfully! Quote #${savedJob.quote_no}`, {
+          duration: 3000,
+          position: 'top-right',
+        });
+
         return savedJob;
       }
     } catch (err) {
       console.error("Save failed:", err);
       const errorMsg = err.response?.data?.message || err.message || 'Failed to save quotation';
       const details = err.response?.data?.details;
-      alert(`Save failed: ${errorMsg}${details ? '\n\nDetails: ' + JSON.stringify(details) : ''}`);
+
+      // Show error toast
+      toast.error(`❌ Save failed: ${errorMsg}`, {
+        duration: 4000,
+        position: 'top-right',
+      });
+
       return null;
     }
   };
@@ -731,75 +757,32 @@ const NewQuotation = () => {
   // --- PDF Download Function ---
   // --- PDF Download Function ---
   // --- PDF Download Function ---
+  // --- PDF Download Function ---
   const handleDownloadPDF = async () => {
-    let quoteId = location.state?.id || header.id;
-
-    // 1. If not saved yet, we use the PREVIEW API (no database save)
-    if (!quoteId) {
-      try {
-        setLoadingStore(true);
-        const payload = {
-          quote_no: header.quoteNo,
-          mr_no: header.mrNo,
-          mr_date: header.mrRecDate || null,
-          oracle_ccid: header.storeCcid,
-          work_description: header.mrDesc || header.description,
-          brand: header.brand,
-          city: header.city,
-          location: header.location,
-          region: header.region,
-          store_opening_date: header.openingDate || null,
-          attentionTo: header.attentionTo,
-          version: header.version,
-          validity: header.validity,
-          mr_priority: header.mrPriority,
-          currency: header.currency,
-          continuous_assessment: header.continuous_assessment,
-          completion_date: completionDate,
-          items: items.filter(i => i.code || i.description).map(item => ({
-            item_code: item.code,
-            description: item.description,
-            unit: item.unit,
-            quantity: Number(item.qty) || 0,
-            material_price: Number(item.material) || 0,
-            labor_price: Number(item.labor) || 0,
-            unit_price: (Number(item.material) || 0) + (Number(item.labor) || 0),
-          })),
-          images: images.filter(img => img !== null)
-        };
-
-        const previewRes = await axios.post(`${API_BASE_URL}/api/pdf/preview-prepare`, payload);
-        if (previewRes.data.success) {
-          quoteId = `preview-${previewRes.data.previewId}`;
-        } else {
-          setLoadingStore(false);
-          alert("Failed to prepare preview.");
-          return;
-        }
-      } catch (error) {
-        console.error("Preview preparation failed:", error);
-        alert("Failed to prepare PDF preview.");
-        setLoadingStore(false);
-        return;
-      } finally {
-        setLoadingStore(false);
-      }
-    }
-
-    // 2. Generate PDF using the ID (BACKEND GENERATION)
+    // 1. Auto-Save as Draft (User Request: "save pdf into drafts")
+    // We force a save to ensure we have a valid ID and latest data in DB
+    setLoadingStore(true);
     try {
+      const savedJob = await handleSave('DRAFT');
+
+      if (!savedJob || !savedJob.id) {
+        setLoadingStore(false);
+        return; // Validation failed or save error
+      }
+
+      const quoteId = savedJob.id;
       console.log("Requesting Backend PDF for ID:", quoteId);
 
-      const payload = {
-        title: "QUOTATION"
-      };
+      // CRITICAL: Wait for backend to fully process uploaded images
+      // This prevents race condition where PDF is generated before images are queryable
+      await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Determine if it's a preview or real ID
-      if (typeof quoteId === 'string' && quoteId.startsWith('preview-')) {
-        payload.previewId = quoteId.replace('preview-', '');
-      } else {
-        payload.quotationId = quoteId;
-      }
+      // 2. Generate PDF using the ID (BACKEND GENERATION)
+      // We now always have a quoteId because we saved it above.
+      const payload = {
+        title: "QUOTATION",
+        quotationId: quoteId
+      };
 
       const res = await axios.post(`${API_BASE_URL}/api/pdf/generate`, payload, {
         responseType: 'blob'
@@ -809,7 +792,8 @@ const NewQuotation = () => {
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Quotation - ${header.quoteNo || 'Draft'}.pdf`);
+      // Use the returned quote_no from save, or fallback
+      link.setAttribute('download', `Quotation - ${savedJob.quote_no || 'Draft'}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -817,6 +801,7 @@ const NewQuotation = () => {
     } catch (err) {
       console.error("PDF Download Error:", err);
       const errorMsg = err.response?.data?.message || err.message || 'Failed to download PDF.';
+
       // Helper: If backend sends JSON error in Blob, try to read it
       if (err.response?.data instanceof Blob) {
         const text = await err.response.data.text();
@@ -829,11 +814,33 @@ const NewQuotation = () => {
       } else {
         alert(`PDF Download Error: ${errorMsg}`);
       }
+    } finally {
+      setLoadingStore(false);
     }
   };
 
   return (
     <div className={`min-h-screen md:py-8 py-2 overflow-x-hidden transition-colors duration-500 ${themeStyles.container}`} style={{ fontFamily: "'Outfit', sans-serif" }}>
+      {/* Toast Notifications */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          success: {
+            style: {
+              background: '#10b981',
+              color: '#fff',
+              fontWeight: 'bold',
+            },
+          },
+          error: {
+            style: {
+              background: '#ef4444',
+              color: '#fff',
+              fontWeight: 'bold',
+            },
+          },
+        }}
+      />
       {/* Google Fonts-Outfit */}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="true" />
@@ -870,12 +877,14 @@ const NewQuotation = () => {
                 data-row="header"
                 data-col="date"
                 type="date"
-                className="w-full outline-none font-semibold uppercase bg-transparent no-print text-black cursor-pointer"
-                style={{ color: 'black' }}
+                className="w-full outline-none font-semibold bg-transparent no-print text-black cursor-pointer"
+                style={{ color: 'black', textTransform: 'uppercase' }}
                 value={header.date}
                 onChange={(e) => handleHeaderChange('date', e.target.value)}
                 onKeyDown={(e) => handleHeaderKeyDown(e, 'date')}
                 onFocus={(e) => e.target.select()}
+                spellCheck={true}
+                lang="en"
               />
               <span className="print-only text-black">{header.date}</span>
             </div>
@@ -889,8 +898,8 @@ const NewQuotation = () => {
               <input
                 data-row="header"
                 data-col="attentionTo"
-                className="w-full outline-none font-semibold uppercase bg-transparent no-print text-black"
-                style={{ color: 'black' }}
+                className="w-full outline-none font-semibold bg-transparent no-print text-black"
+                style={{ color: 'black', textTransform: 'uppercase' }}
                 value={header.attentionTo}
                 onChange={(e) => handleHeaderChange('attentionTo', e.target.value)}
                 onKeyDown={(e) => handleHeaderKeyDown(e, 'attentionTo')}
@@ -911,8 +920,8 @@ const NewQuotation = () => {
               <input
                 data-row="header"
                 data-col="brand"
-                className="w-full outline-none font-semibold uppercase bg-transparent no-print text-black"
-                style={{ color: 'black' }}
+                className="w-full outline-none font-semibold bg-transparent no-print text-black"
+                style={{ color: 'black', textTransform: 'uppercase' }}
                 value={header.brand}
                 onChange={(e) => handleHeaderChange('brand', e.target.value)}
                 onKeyDown={(e) => handleHeaderKeyDown(e, 'brand')}
@@ -930,8 +939,8 @@ const NewQuotation = () => {
               <input
                 data-row="header"
                 data-col="quoteNo"
-                className="w-full outline-none font-semibold uppercase bg-transparent no-print text-black"
-                style={{ color: 'black' }}
+                className="w-full outline-none font-semibold bg-transparent no-print text-black"
+                style={{ color: 'black', textTransform: 'uppercase' }}
                 value={header.quoteNo}
                 onChange={(e) => handleHeaderChange('quoteNo', e.target.value)}
                 onKeyDown={(e) => handleHeaderKeyDown(e, 'quoteNo')}
@@ -953,8 +962,8 @@ const NewQuotation = () => {
               <input
                 data-row="header"
                 data-col="location"
-                className="w-full outline-none font-semibold uppercase bg-transparent no-print text-black"
-                style={{ color: 'black' }}
+                className="w-full outline-none font-semibold bg-transparent no-print text-black"
+                style={{ color: 'black', textTransform: 'uppercase' }}
                 value={header.location}
                 onChange={(e) => handleHeaderChange('location', e.target.value)}
                 onKeyDown={(e) => handleHeaderKeyDown(e, 'location')}
@@ -970,7 +979,8 @@ const NewQuotation = () => {
               <input
                 data-row="header"
                 data-col="mrNo"
-                className={`w-full outline-none font-semibold uppercase bg-transparent pr-8 no-print ${mrStatus === 'exists' ? 'text-red-600' : ''}`}
+                className={`w-full outline-none font-semibold bg-transparent pr-8 no-print ${mrStatus === 'exists' ? 'text-red-600' : ''}`}
+                style={{ textTransform: 'uppercase' }}
                 value={header.mrNo}
                 onChange={(e) => handleHeaderChange('mrNo', e.target.value)}
                 onBlur={checkMrExistence}
@@ -1020,8 +1030,8 @@ const NewQuotation = () => {
               <input
                 data-row="header"
                 data-col="city"
-                className="w-full outline-none font-semibold uppercase bg-transparent no-print text-black"
-                style={{ color: 'black' }}
+                className="w-full outline-none font-semibold bg-transparent no-print text-black"
+                style={{ color: 'black', textTransform: 'uppercase' }}
                 value={header.city}
                 onChange={(e) => handleHeaderChange('city', e.target.value)}
                 onKeyDown={(e) => handleHeaderKeyDown(e, 'city')}
@@ -1037,8 +1047,8 @@ const NewQuotation = () => {
               <input
                 data-row="header"
                 data-col="storeCcid"
-                className={`w-full outline-none font-semibold uppercase bg-transparent pr-12 no-print text-black ${storeStatus === 'error' ? 'text-red-600' : storeStatus === 'manual' ? 'text-yellow-600' : ''}`}
-                style={{ color: 'black' }}
+                className={`w-full outline-none font-semibold bg-transparent pr-12 no-print text-black ${storeStatus === 'error' ? 'text-red-600' : storeStatus === 'manual' ? 'text-yellow-600' : ''}`}
+                style={{ color: 'black', textTransform: 'uppercase' }}
                 value={header.storeCcid}
                 onChange={(e) => handleHeaderChange('storeCcid', e.target.value)}
                 onBlur={() => handleStoreLookup()}
@@ -1071,8 +1081,8 @@ const NewQuotation = () => {
               <input
                 data-row="header"
                 data-col="mrPriority"
-                className="w-full outline-none font-semibold uppercase bg-transparent no-print text-black"
-                style={{ color: 'black' }}
+                className="w-full outline-none font-semibold bg-transparent no-print text-black"
+                style={{ color: 'black', textTransform: 'uppercase' }}
                 value={header.mrPriority}
                 onChange={(e) => handleHeaderChange('mrPriority', e.target.value)}
                 onKeyDown={(e) => handleHeaderKeyDown(e, 'mrPriority')}
@@ -1137,6 +1147,9 @@ const NewQuotation = () => {
                 style={{ color: 'black' }}
                 placeholder="Continuous assessment notes..."
                 value={header.continuous_assessment || ''}
+                spellCheck={true}
+                lang="en"
+                autoCapitalize="sentences"
                 onChange={(e) => handleHeaderChange('continuous_assessment', e.target.value)}
                 onKeyDown={(e) => handleHeaderKeyDown(e, 'continuous_assessment')}
                 onFocus={(e) => e.target.select()}
@@ -1174,7 +1187,7 @@ const NewQuotation = () => {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -10 }}
                       transition={{ duration: 0.15 }}
-                      className={`align-top leading-tight uppercase font-semibold text-[10px] group/row ${activeRow === index ? 'bg-blue-50/20' : ''}`}
+                      className={`align-top leading-tight font-semibold text-[10px] group/row ${activeRow === index ? 'bg-blue-50/20' : ''}`}
                       style={{ zIndex: activeRow === index ? 50 : 1, position: 'relative' }}
                     >
                       <td
@@ -1187,7 +1200,7 @@ const NewQuotation = () => {
                         <input
                           data-row={index}
                           data-col="code"
-                          className="w-full outline-none text-center bg-transparent no-print placeholder:opacity-30"
+                          className="w-full outline-none text-center bg-transparent no-print placeholder:opacity-30 uppercase"
                           placeholder="Code"
                           value={item.code}
                           onChange={(e) => handleItemSearch(index, 'code', e.target.value)}
@@ -1241,7 +1254,8 @@ const NewQuotation = () => {
                           rows={1}
                           onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
                           spellCheck={true}
-                          lang="en-US"
+                          lang="en"
+                          autoCapitalize="sentences"
                           ref={(el) => {
                             if (el) {
                               el.style.height = 'auto';
@@ -1266,7 +1280,7 @@ const NewQuotation = () => {
                         <input
                           data-row={index}
                           data-col="unit"
-                          className="w-full outline-none text-center bg-transparent no-print font-bold"
+                          className="w-full outline-none text-center bg-transparent no-print font-bold uppercase"
                           value={item.unit}
                           onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)}
                           onFocus={(e) => {
@@ -1631,6 +1645,9 @@ const NewQuotation = () => {
                 value={terms}
                 onChange={(e) => setTerms(e.target.value)}
                 placeholder="Enter Terms and Conditions"
+                spellCheck={true}
+                lang="en"
+                autoCapitalize="sentences"
               />
               <div className="print-only text-[9px] font-semibold whitespace-pre-line p-2 text-black">{terms}</div>
               <div className="flex items-center gap-2 mt-2">
@@ -1685,22 +1702,10 @@ const NewQuotation = () => {
 
         <div className="flex gap-4 p-4 md:p-0 no-print">
           <button
-            onClick={() => handleSave('DRAFT')}
-            className="flex-1 bg-gray-500 text-white font-bold uppercase text-xs py-3 hover:bg-gray-600 transition-colors"
-          >
-            Save as Draft
-          </button>
-          <button
             onClick={handleDownloadPDF}
             className="flex-1 bg-blue-600 text-white font-bold uppercase text-xs py-3 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
           >
             <Download size={16} /> Download PDF
-          </button>
-          <button
-            onClick={() => window.print()}
-            className="flex-1 bg-black text-white font-bold uppercase text-xs py-3 hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-          >
-            <Printer size={16} /> Print/Save
           </button>
         </div>
 
@@ -1715,13 +1720,7 @@ const NewQuotation = () => {
             <X size={14} /> Cancel
           </button>
           <button
-            onClick={async () => {
-              const job = await handleSave('DRAFT');
-              if (job) {
-                alert('Draft Saved!');
-                navigate('/quotations/list');
-              }
-            }}
+            onClick={() => handleSave('DRAFT')}
             className={`flex items-center gap-2 px-6 py-2.5 text-[11px] font-bold uppercase transition-all rounded-lg shadow-sm border ${darkMode ? 'bg-gray-700 border-gray-600 text-white hover:bg-gray-600' : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'}`}
           >
             <Save size={14} /> Save Draft
@@ -1731,7 +1730,6 @@ const NewQuotation = () => {
             onClick={async () => {
               const job = await handleSave('SENT');
               if (job) {
-                alert('Quotation Saved and Sent!');
                 navigate('/quotations/list');
               }
             }}
@@ -1743,22 +1741,7 @@ const NewQuotation = () => {
 
       </div>
 
-      <div className="fixed bottom-6 right-6 flex flex-col gap-3 print:hidden z-50">
-        <button
-          onClick={() => window.print()}
-          className={`${darkMode ? 'bg-white text-black' : 'bg-black text-white'} p-4 rounded-full shadow-2xl hover: scale-110 transition-transform active: scale-95`}
-          title="Print Document"
-        >
-          <Printer size={24} />
-        </button>
-        {/* <button
-          onClick={downloadPDF}
-          className="bg-blue-600 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform active:scale-95"
-          title="Download PDF"
-        >
-          <Download size={24} />
-        </button> */}
-      </div>
+
 
       <style>{`
 @media print {

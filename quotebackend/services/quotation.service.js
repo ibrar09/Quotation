@@ -107,7 +107,7 @@ export const createQuotation = async (data) => {
   if (images && images.length > 0) {
     for (const imgData of images) {
       if (imgData) {
-        const isPath = typeof imgData === 'string' && imgData.startsWith('/uploads');
+        const isPath = typeof imgData === 'string' && (imgData.startsWith('/uploads') || imgData.startsWith('http'));
         await JobImage.create({
           job_id: job.id,
           image_data: isPath ? null : imgData,
@@ -198,7 +198,7 @@ export const updateQuotation = async (jobId, data) => {
     await JobImage.destroy({ where: { job_id: jobId } });
     for (const imgData of data.images) {
       if (imgData) {
-        const isPath = typeof imgData === 'string' && imgData.startsWith('/uploads');
+        const isPath = typeof imgData === 'string' && (imgData.startsWith('/uploads') || imgData.startsWith('http'));
         await JobImage.create({
           job_id: jobId,
           image_data: isPath ? null : imgData,
@@ -243,20 +243,95 @@ export const getQuotationById = async (jobId) => {
 /**
  * 🔹 LIST ALL QUOTATIONS (Excludes Intakes)
  */
-export const listQuotations = async () => {
+/**
+ * 🔹 LIST ALL QUOTATIONS (Excludes Intakes)
+ * Supports pagination params but defaults to recent 300 for speed
+ */
+export const listQuotations = async (page = 1, limit = 300, filters = {}) => {
+  const offset = (page - 1) * limit;
+
+  const where = {
+    is_latest: true,
+    quote_status: { [Op.notIn]: ['INTAKE', 'PREVIEW'] }
+  };
+
+  // [NEW] Add City Filter
+  if (filters.city) {
+    where.city = { [Op.iLike]: `%${filters.city}%` };
+  }
+
+  // [NEW] Add Date Filter (createdAt)
+  if (filters.date) {
+    // Assuming filters.date is "YYYY-MM-DD"
+    // We need to match the whole day.
+    const startOfDay = new Date(filters.date);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(filters.date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    where.createdAt = {
+      [Op.between]: [startOfDay, endOfDay]
+    };
+  }
+
+  // [NEW] Add Month Filter (YYYY-MM)
+  if (filters.month) {
+    const [year, month] = filters.month.split('-');
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+
+    where.createdAt = {
+      [Op.between]: [startOfMonth, endOfMonth]
+    };
+  }
+
+  // [NEW] Add Year Filter (YYYY)
+  if (filters.year) {
+    const year = parseInt(filters.year);
+    const startOfYear = new Date(year, 0, 1);
+    const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
+
+    where.createdAt = {
+      [Op.between]: [startOfYear, endOfYear]
+    };
+  }
+
   return Job.findAll({
-    where: {
-      is_latest: true,
-      quote_status: { [Op.notIn]: ['INTAKE', 'PREVIEW'] }
-    },
+    attributes: [
+      'id', 'quote_no', 'mr_no', 'mr_date', 'pr_no', 'brand', 'brand_name',
+      'location', 'city', 'region', 'quote_status', 'work_status',
+      'work_description', 'grand_total', 'createdAt', 'oracle_ccid',
+      'subtotal', 'vat_amount', 'discount', 'transportation', 'sent_at', 'completion_date',
+      'completed_by', 'supervisor', 'comments', 'craftsperson_notes',
+      'check_in_date', 'check_in_time', 'mr_priority', 'currency', 'version'
+    ],
+    where,
     include: [
-      { model: Store },
+      {
+        model: Store,
+        attributes: ['mall', 'city', 'region', 'brand']
+      },
       {
         model: PurchaseOrder,
-        include: [{ model: Finance }] // Nested include for Finance details
+        attributes: ['po_no', 'po_date', 'amount_ex_vat', 'total_inc_vat', 'eta', 'update_notes'],
+        include: [{
+          model: Finance,
+          attributes: [
+            'invoice_no', 'invoice_status', 'received_amount', 'invoice_date',
+            'payment_date', 'payment_month', 'hsbc_no', 'vat_status', 'vat_duration',
+            'days_outstanding', 'our_bank_ref', 'company_bank_ref', 'payment_status',
+            'payment_ref', 'general_ref', 'bank_date', 'advance_payment'
+          ]
+        }]
       }
     ],
-    order: [['createdAt', 'DESC']]
+    order: [['createdAt', 'DESC']],
+    limit: limit,
+    offset: offset,
+    // [Performance] Subqueries can be slow, but needed for includes with limits in 1:M specific cases.
+    // However, Job is 1:1 with Store (mostly) and 1:M with PO but we only take first usually.
+    // subQuery: false // Try toggle if issues arise
   });
 };
 

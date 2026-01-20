@@ -3,9 +3,37 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import Job from '../models/job.js';
 import { generateQuotationHTML } from '../utils/pdfTemplates/quotation.template.js';
+import { fileURLToPath } from 'url';
+import { stampBase64, signatureBase64 } from '../config/assets.js';
 
 // In-memory store for temporary previews (lasts until server restart)
 const previewStore = new Map();
+
+// Singleton Browser Instance
+let browserInstance = null;
+
+const getBrowserInstance = async () => {
+    if (browserInstance && browserInstance.isConnected()) {
+        return browserInstance;
+    }
+    console.log('[PDF] Launching new Puppeteer instance...');
+    browserInstance = await puppeteer.launch({
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
+        headless: 'new',
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--font-render-hinting=none',
+            '--disable-extensions',
+            '--disable-sync',
+            '--disable-background-networking',
+            '--disable-default-apps'
+        ]
+    });
+    return browserInstance;
+};
 
 export const preparePreview = async (req, res) => {
     try {
@@ -65,7 +93,7 @@ export const generatePdf = async (req, res) => {
                 if (!job) throw new Error('Quotation not found');
 
                 const jobJSON = job.toJSON();
-                console.log('[PDF] Job Data loaded:', JSON.stringify(jobJSON, null, 2));
+                // console.log('[PDF] Job Data loaded:', JSON.stringify(jobJSON, null, 2));
 
                 // ---------------------------------------------------------
                 // MAP DATA TO MATCH FRONTEND LOGIC (QuotationPrintView.jsx)
@@ -74,9 +102,18 @@ export const generatePdf = async (req, res) => {
                 // Process Images: Convert local /uploads paths OR remote URLs to Base64 for Puppeteer
                 const processedImages = await Promise.all((jobJSON.JobImages || []).map(async (img) => {
                     let imagePath = img.file_path || '';
+                    // console.log(`[PDF] Processing Image: ${imagePath}`);
+
                     try {
                         // 1. Remote URL (Cloudinary / S3)
                         if (imagePath.startsWith('http')) {
+                            // OPTIMIZATION: Use Cloudinary Transformation if applicable
+                            // Inject w_800,q_auto,f_auto if it's a cloudinary URL and doesn't already have params
+                            if (imagePath.includes('cloudinary.com') && imagePath.includes('/upload/') && !imagePath.includes('/w_')) {
+                                imagePath = imagePath.replace('/upload/', '/upload/w_800,q_auto,f_auto/');
+                                // console.log(`[PDF] Cloudinary Optimized: ${imagePath}`);
+                            }
+
                             // Use native fetch (Node 18+)
                             const response = await fetch(imagePath);
                             if (response.ok) {
@@ -84,16 +121,34 @@ export const generatePdf = async (req, res) => {
                                 const buffer = Buffer.from(arrayBuffer);
                                 const mime = response.headers.get('content-type') || 'image/jpeg';
                                 return `data:${mime};base64,${buffer.toString('base64')}`;
+                            } else {
+                                console.warn(`[PDF] Failed to fetch remote image: ${response.statusText}`);
                             }
                         }
                         // 2. Local File System
-                        else if (imagePath.startsWith('/uploads')) {
-                            const localPath = `.${imagePath}`; // e.g., ./uploads/filename.jpg
-                            if (fs.existsSync(localPath)) {
-                                const fileData = fs.readFileSync(localPath);
-                                const ext = imagePath.split('.').pop().toLowerCase();
+                        // Treat anything that isn't http/https as local
+                        else if (imagePath && typeof imagePath === 'string') {
+                            // Normalize path to fix windows backslashes
+                            const normalizedPath = imagePath.replace(/\\/g, '/');
+
+                            // Try multiple resolution strategies
+                            // 1. As provided (relative to root)
+                            let finalPath = path.resolve(process.cwd(), normalizedPath.startsWith('/') ? normalizedPath.slice(1) : normalizedPath);
+
+                            // 2. If not found, try inside 'uploads' folder if it wasn't already there
+                            if (!fs.existsSync(finalPath) && !normalizedPath.includes('uploads')) {
+                                finalPath = path.resolve(process.cwd(), 'uploads', normalizedPath);
+                            }
+
+                            // console.log(`[PDF] Resolving Local Path: ${imagePath} -> ${finalPath}`);
+
+                            if (fs.existsSync(finalPath)) {
+                                const fileData = fs.readFileSync(finalPath);
+                                const ext = path.extname(finalPath).toLowerCase().replace('.', '');
                                 const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
                                 return `data:${mime};base64,${fileData.toString('base64')}`;
+                            } else {
+                                console.warn(`[PDF] Local file not found: ${finalPath}`);
                             }
                         }
                     } catch (err) {
@@ -125,24 +180,21 @@ export const generatePdf = async (req, res) => {
                     warranty: jobJSON.warranty || ''
                 };
 
-                // Load Assets (Stamp & Signature) from Frontend Directory if possible
+                // Load Assets (Stamp & Signature) from Embedded Config
+                // This bypasses filesystem issues in Vercel completely.
                 try {
-                    // Path to frontend assets: c:\Quotation\quotefrontend\src\assets
-                    const assetPath = 'c:/Quotation/quotefrontend/src/assets';
-
-                    if (fs.existsSync(`${assetPath}/stamp.jpeg`)) {
-                        const stamp = fs.readFileSync(`${assetPath}/stamp.jpeg`);
-                        quoteData.stampBase64 = `data:image/jpeg;base64,${stamp.toString('base64')}`;
+                    console.log('[PDF] Using Embedded Assets');
+                    if (stampBase64) {
+                        quoteData.stampBase64 = stampBase64;
                     }
-                    if (fs.existsSync(`${assetPath}/signature.jpeg`)) {
-                        const sig = fs.readFileSync(`${assetPath}/signature.jpeg`);
-                        quoteData.signatureBase64 = `data:image/jpeg;base64,${sig.toString('base64')}`;
+                    if (signatureBase64) {
+                        quoteData.signatureBase64 = signatureBase64;
                     }
                 } catch (assetErr) {
-                    console.warn('[PDF] Failed to load local assets:', assetErr.message);
+                    console.warn('[PDF] Failed to load assets:', assetErr.message);
                 }
 
-                console.log('[PDF] Final Mapped Data:', JSON.stringify(quoteData, null, 2));
+                // console.log('[PDF] Final Mapped Data:', JSON.stringify(quoteData, null, 2));
             }
 
             if (!quoteData) throw new Error('Failed to retrieve data for PDF generation');
@@ -155,18 +207,8 @@ export const generatePdf = async (req, res) => {
             return res.status(400).send('Either URL or quotationId/previewId is required');
         }
 
-        // 2. PUPPETEER LAUNCH
-        const browser = await puppeteer.launch({
-            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
-            headless: 'new',
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--font-render-hinting=none',
-            ]
-        });
+        // 2. PUPPETEER LAUNCH (SINGLETON)
+        const browser = await getBrowserInstance();
         const page = await browser.newPage();
 
         // Build header template for REPETITION (This applies to both methods)
@@ -207,6 +249,14 @@ export const generatePdf = async (req, res) => {
         if (pdfHTML) {
             // BACKEND GENERATION: Set HTML directly
             await page.setContent(pdfHTML, { waitUntil: 'domcontentloaded' });
+
+            // Wait for images to fully load (signaled by script in template)
+            try {
+                // console.log('[PDF] Waiting for image preloader...');
+                await page.waitForSelector('#pdf-ready-signal', { timeout: 30000 });
+            } catch (e) {
+                console.warn('[PDF] Timeout waiting for image preloader. Snapshot might be partial.');
+            }
         } else {
             // LEGACY URL NAVIGATION
             console.log(`[PDF] Navigating to URL: ${url}`);
@@ -258,7 +308,11 @@ export const generatePdf = async (req, res) => {
             printBackground: true,
             displayHeaderFooter: true,
             headerTemplate: headerTemplate,
-            footerTemplate: '<div></div>',
+            footerTemplate: `
+                <div style="font-size: 8px; font-family: sans-serif; width: 100%; text-align: center; color: #888; padding-bottom: 5px;">
+                    Page <span class="pageNumber"></span> of <span class="totalPages"></span>
+                </div>
+            `,
             margin: {
                 top: '35mm',      // Header space
                 bottom: '15mm',
@@ -268,7 +322,8 @@ export const generatePdf = async (req, res) => {
             preferCSSPageSize: true
         });
 
-        await browser.close();
+        // await browser.close(); // Don't close singleton!
+        await page.close(); // Close the page only
         console.log('[PDF] Generated successfully.');
 
         res.set({

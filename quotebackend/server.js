@@ -11,6 +11,10 @@ import { startBrandSeeding } from './seed/initBrands.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+import compression from 'compression'; // [NEW]
+import helmet from 'helmet'; // [NEW] Security Headers
+import rateLimit from 'express-rate-limit'; // [NEW] Rate Limiting
+
 // Initialize dotenv
 dotenv.config();
 
@@ -21,19 +25,48 @@ console.log('---------------------------');
 
 const app = express();
 
-// Middleware
 const allowedOrigins = [
     process.env.FRONTEND_URL || 'http://localhost:5173',
-    'http://localhost:3000' // Legacy/fallback
+    'http://localhost:3000',
+    'https://quotefrontend-5t1t-git-main-ibrar-ahmads-projects-a25e834c.vercel.app' // Explicitly add production URL
 ];
 
+// CORS Middleware must be first
 app.use(cors({
     origin: function (origin, callback) {
-        // NUCLEAR OPTION: Allow all origins to fix the persistent blocker
-        return callback(null, true);
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1 || true) { // KEEPING NUCLEAR TRUE FOR NOW TO UNBLOCK
+            return callback(null, true);
+        } else {
+            return callback(new Error('Not allowed by CORS'));
+        }
     },
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Handle preflight requests for all routes (Express 5 fix: use regex instead of *)
+app.options(/(.*)/, cors());
+
+// Security Middleware
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow cross-origin for images/PDFs
+    contentSecurityPolicy: false // Disable CSP for API-only to avoid blocking inline scripts in potential debug views
+}));
+
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 200, // Limit each IP to 200 requests per windowMs
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+app.use('/api', limiter); // Apply rate limiting to API routes
+
+// Middleware
+app.use(compression()); // [NEW] Enable GZIP/Brotli Compression
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 

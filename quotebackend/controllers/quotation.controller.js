@@ -120,11 +120,24 @@ export const getQuotationById = async (req, res) => {
  */
 export const listQuotations = async (req, res) => {
   try {
-    const quotations = await quotationService.listQuotations();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 300;
+
+    // [NEW] Extract filters
+    const filters = {
+      city: req.query.city,
+      date: req.query.date,
+      month: req.query.month, // [NEW]
+      year: req.query.year    // [NEW]
+    };
+
+    const quotations = await quotationService.listQuotations(page, limit, filters);
 
     res.status(200).json({
       success: true,
-      data: quotations
+      data: quotations,
+      page,
+      limit
     });
   } catch (error) {
     res.status(500).json({
